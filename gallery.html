@@ -1,0 +1,506 @@
+<html>
+    <head>
+        <style>
+            body { margin: 0; padding: 0; }
+            canvas { width: 100%; height: 100%; }
+            #blocker {
+                position: absolute;
+                width: 100%;
+                height: 100%;
+                background-color: rgba(0, 0, 0, 0.5);
+            }
+            
+            #info {
+                width: 20%;
+                height: 40%;
+                background-color: white;
+                border-radius: 32px;
+                
+                position: absolute;
+                left: 0; right: 0;
+                top: 0; bottom: 0;
+                margin: auto;
+                
+                text-align: center;
+                font-family: sans-serif;
+                border: 16px solid #9c88ff;
+                box-shadow: 0 14px 28px rgba(0,0,0,0.25), 0 10px 10px rgba(0,0,0,0.22);
+            }
+            
+            h1, h3, h4 {
+                margin: 0;
+                margin-top: 6px;
+            }
+        </style>
+        <meta charset="utf-8"/>
+    </head>
+    <body>
+        <div id='blocker'>
+            <div id='info'>
+                <h1> Art Gallery </h1>
+                <h3 id='server-name'> Server Name </h3>
+                <h4 id='channel-name'> Channel Name </h4>
+                
+                <br><br>
+                <p> Click anywhere to start exploring </p>
+            </div>
+        </div>
+    </body>
+    <script src='https://cdnjs.cloudflare.com/ajax/libs/three.js/97/three.min.js'></script>
+    <script src='js/PointerLockControls.js'></script>
+    <script src='js/WebVR.js'></script>
+    <script>
+        // ThreeJS globals
+        var scene, camera, renderer, controls;
+        
+        // Room and painting data
+        var room_size = 150;
+        var room_height = 50;
+        var floor_height = 16;
+        var painting_positions = [];
+        var current_painting = 0;
+        var gallery_info;
+        
+        // Movement variables
+        var moveF, moveB, moveL, moveR, moveJ = false;
+        var moveB = false;
+        var moveL = false;
+        var moveR = false; 
+        var moveJ = false;
+        
+        // Movement variables
+        var prevTime = performance.now();
+        var velocity = new THREE.Vector3();
+        var direction = new THREE.Vector3();
+        
+        // keyDown event handler
+        var onKeyDown = function(event) {
+            switch(event.keyCode) {
+                case 38:
+                case 87:
+                    moveF = true;
+                    break;
+                case 37:
+                case 65:
+                    moveL = true;
+                    break;
+                case 40:
+                case 83:
+                    moveB = true;
+                    break;
+                case 39:
+                case 68:
+                    moveR = true;
+                    break;
+                case 32:
+                    moveJ = true;
+                    break;
+            }
+        }
+        
+        // keyUp event handler
+        var onKeyUp = function(event) {
+            switch(event.keyCode) {
+                case 38:
+                case 87:
+                    moveF = false;
+                    break;
+                case 37:
+                case 65:
+                    moveL = false;
+                    break;
+                case 40:
+                case 83:
+                    moveB = false;
+                    break;
+                case 39:
+                case 68:
+                    moveR = false;
+                    break;
+                case 32:
+                    moveJ = false;
+                    break;
+            }
+        }
+        // Add event listeners for movement
+        document.addEventListener('keydown', onKeyDown, false);
+        document.addEventListener('keyup', onKeyUp, false);
+        
+        /*
+            Fisher-Yates table shuffle
+        */
+        function shuffleArray(array) {
+            for (var i = array.length - 1; i > 0; i--) {
+                var j = Math.floor(Math.random() * (i + 1));
+                var temp = array[i];
+                array[i] = array[j];
+                array[j] = temp;
+            }
+        }
+        
+        /*
+            Init the THREE environment
+            This creates the camera and renderer
+        */
+        function init() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0xffffff);
+
+            var light = new THREE.HemisphereLight(0xeeeeff, 0x777788, 1);
+            //scene.add(light);
+            
+            createCamera();
+            
+            renderer = new THREE.WebGLRenderer();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+        }
+        
+        /*
+            Create the camera for the scene
+        */
+        function createCamera() {
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 2, 0);
+            camera.lookAt(new THREE.Vector3(0, 2, 0));
+            controls = new THREE.PointerLockControls(camera);
+            scene.add(controls.getObject());
+        }
+        
+        /*
+            Remove all geometry from the scene
+        */
+        function clearGeometry() {
+            while (scene.children.length > 0) {
+                scene.remove(scene.children[0]);
+            }
+            
+            // Recreate the camera
+            createCamera();
+        }
+        
+        /*
+            Build the art gallery environment
+            This creates the floor, walls and ceiling. Also adds a light to the room.
+        */
+        function addGeometry() {
+            var texture = new THREE.TextureLoader().load('img/art/woodfloor.png');
+            var material = new THREE.MeshPhongMaterial({map: texture});
+            
+            var floor = new THREE.Mesh(
+                new THREE.PlaneBufferGeometry(room_size, room_size),
+                material,
+            );
+            floor.rotateX(-Math.PI/2);
+            scene.add(floor);
+            
+            var walltexture = new THREE.TextureLoader().load('img/art/whitewall.png');
+            var wallmaterial = new THREE.MeshLambertMaterial({map: walltexture});
+            //var wallmaterial = new THREE.MeshBasicMaterial({color: 0x00ff00, wireframe: true});
+            
+            var room_height = 50;
+            var wall_positions = [
+                [0, -room_size/2, 0],
+                [0, room_size/2, Math.PI],
+                [-room_size/2, 0, Math.PI/2],
+                [room_size/2, 0, -Math.PI/2],
+            ]
+            
+            for(var i=0; i<wall_positions.length; i++) {
+                var p = wall_positions[i];
+                var wall = new THREE.Mesh(
+                    new THREE.PlaneBufferGeometry(room_size, room_height*2),
+                    wallmaterial,
+                );
+                scene.add(wall);
+                
+                wall.position.set(p[0], room_height, p[1]);
+                wall.rotateY(p[2]);
+            }
+            
+            var ceiling = new THREE.Mesh(
+                new THREE.PlaneBufferGeometry(room_size, room_size),
+                wallmaterial,
+            );
+            scene.add(ceiling);
+            ceiling.position.set(0, room_height, 0);
+            ceiling.rotateX(Math.PI/2);
+            
+            var light = new THREE.PointLight(0xcceeff, 1, room_size*2, 1);
+            light.position.set(0, room_height/2, 0);
+            scene.add(light);
+        }
+        
+        /*
+            Add a painting to the art gallery
+        */
+        function addPainting(image) {
+            if (current_painting >= painting_positions.length) return;
+            var position = painting_positions[current_painting];
+            
+            console.log(image, position);
+            
+            var texture = new THREE.TextureLoader().load(image, function(texture) {
+                var ratio = texture.image.height/texture.image.width;
+                var width = position[0];
+                var height = width*ratio;
+                var paintmat = new THREE.MeshLambertMaterial({map: texture});
+                var painting = new THREE.Mesh(
+                    new THREE.PlaneBufferGeometry(width, height),
+                    paintmat,
+                )
+                scene.add(painting);
+                painting.position.set(position[1], room_height/2 + Math.random()*15 - 7, position[2]);
+                painting.rotateY(position[3]);
+            });
+            
+            current_painting++;
+        }
+        
+        /*
+            Define the functions for paintings on walls
+            Each wall requires different position and rotation
+        */
+        var wall_funcs = [
+            function(size, wallx) {
+                return [size, -room_size/2 + wallx, -room_size/2 + 0.05, 0];
+            },
+            
+            function(size, wallx) {
+                return [size, -room_size/2 + wallx, room_size/2 - 0.05, Math.PI];
+            },
+            
+            function(size, wallx) {
+                return [size, -room_size/2 + 0.05, -room_size/2 + wallx, Math.PI/2];
+            },
+            
+            function(size, wallx) {
+                return [size, room_size/2 - 0.05, -room_size/2 + wallx, -Math.PI/2];
+            },
+        ]
+        
+        /*
+            Calculate all the possible painting positions
+            This is then shuffled so the paintings are scattered randomly
+        */
+        function calculatePaintingPositions() {
+            var wallnum = 0;
+            var max = room_size;
+            while (wallnum < 4) {
+                var wallx = (Math.random() * 20) + 10;
+                while (wallx < max) {
+                    var size = Math.floor(Math.random() * 30) + 10;
+                    if (wallx + size > max) break;
+                    if (wallx - size < 0) wallx = size + 10;
+                    
+                    painting_positions.push(wall_funcs[wallnum](size, wallx));
+                    wallx += size + (Math.random() * 20) + 5;
+                }
+                
+                wallnum++
+            }
+            
+            shuffleArray(painting_positions);
+        }
+        
+        /*
+            Movement handler
+        */
+        function move(delta) {
+            // Apply accelerations
+            velocity.x -= velocity.x * 10.0 * delta;
+            velocity.z -= velocity.z * 10.0 * delta;
+            velocity.y -= 18 * 10.0 * delta;
+            
+            // Normalize the direction of movement
+            direction.z = Number(moveF) - Number(moveB);
+            direction.x = Number(moveL) - Number(moveR);
+            direction.normalize();
+            
+            // Increase velocity based on which buttons are pressed
+            if (moveF || moveB) velocity.z -= direction.z * 400.0 * delta;
+            if (moveL || moveR) velocity.x -= direction.x * 400.0 * delta;
+            
+            if (moveJ && controls.getObject().position.y == floor_height) {
+                velocity.y = 50;
+            }
+            
+            // Translate the player based on the velocity
+            controls.getObject().translateX(velocity.x * delta);
+            controls.getObject().translateY(velocity.y * delta);
+            controls.getObject().translateZ(velocity.z * delta);
+            
+            // Stop the player from moving outside the art gallery room
+            var size = (room_size/2) - 2;
+            // Floor height constraints
+            if (controls.getObject().position.y < floor_height) {
+                velocity.y = 0;
+                controls.getObject().position.y = floor_height;
+            }
+            
+            
+            // X axis constraints
+            if (controls.getObject().position.x < -size) {
+                velocity.x = 0
+                controls.getObject().position.x = -size;
+            } else if (controls.getObject().position.x > size) {
+                velocity.x = 0
+                controls.getObject().position.x = size;
+            }
+            
+            // Z axis constraints
+            if (controls.getObject().position.z < -size) {
+                velocity.z = 0
+                controls.getObject().position.z = -size;
+            } else if (controls.getObject().position.z > size) {
+                velocity.z = 0
+                controls.getObject().position.z = size;
+            }
+        }
+        
+        /*
+            Called as often as possible
+            This in turn triggers the movement function above
+        */
+        function render() {
+            if (controls.isLocked === true) {
+                //raycaster.ray.origin.copy(controls.GetObject().position);
+                //raycaster.ray.origin.y -= 10;
+                
+                //var intersections = raycaster.intersectObjects();
+                
+                var time = performance.now();
+                var delta = (time-prevTime)/1000;
+                move(delta);
+                
+                prevTime = time;
+            }
+            requestAnimationFrame(animate);
+            renderer.render(scene, camera);
+        }
+        
+        function animate() {
+            renderer.setAnimationLoop(render);
+        }
+        
+        /*
+            Opens up the info.json for the gallery
+        */
+        function openInfo(gallery) {
+            var path = 'img/art/' + gallery + '/info.json';
+            var client = new XMLHttpRequest();
+            client.open('GET', path);
+            var done = false;
+            client.onreadystatechange = function() {
+                if (done) return;
+                gallery_info = JSON.parse(client.responseText);
+                done = true;
+                parseGalleryInfo(gallery);
+            };
+            client.send();
+        }
+        
+        function parseGalleryInfo(gallery) {
+            if (!gallery_info) return;
+            
+            // Update the info text on front page
+            document.getElementById('server-name').innerHTML = gallery_info.guild;
+            document.getElementById('channel-name').innerHTML = gallery_info.channel;
+                                    
+            // Populate the gallery with paintings
+            calculatePaintingPositions();
+            placePaintings(gallery, gallery_info.images);
+        }
+        
+        /*
+            Places down as many paintings as possible in the art gallery
+        */
+        function placePaintings(gallery, images) {
+            while (current_painting < painting_positions.length) {
+                // Put all the paintings into an array, then shuffle
+                var paintings = [];
+                for(var i=0; i<images.length; i++) {
+                    paintings.push('img/art/' + gallery + '/' + images[i])
+                }
+                shuffleArray(paintings);
+                
+                // Add all the paintings in the shuffled array
+                for(var i=0; i<paintings.length; i++) {
+                    addPainting(paintings[i]);
+                }
+            }
+        }
+        
+        /*
+            Handle any paramaters in the URL
+            The following are options:
+             ?id=
+                Very important.
+                Defines what channel to load images from.
+             ?size=
+                Allows changing the size of the gallery.
+                Default is 100.
+             ?vr=true
+                Enables VR support.
+        */
+        function handleGallery() {
+            var url = window.location.href;
+            var query = url ? url.split('?').pop() : window.location.search.slice(1);
+            query = query.split('&');
+            
+            for(var i=0; i<query.length; i++) {
+                // Parse ID query paramaters
+                if (query[i].startsWith('id=')) {
+                    var gallery = query[i].split('=').pop();
+                    if (!isNaN(gallery)) {
+                        openInfo(gallery);
+                    }
+                } else if(query[i].startsWith('size=')) {
+                    var size = parseInt(query[i].split('=').pop(), 10);
+                    if (!isNaN(size)) {
+                        room_size = size;
+                        clearGeometry();
+                        addGeometry();
+                    }
+                } else if(query[i].startsWith('vr=')) {
+                    var bool = query[i].split('=').pop()
+                    if (bool == 'yes' || bool == 'true') {
+                        renderer.vr.enabled = true;
+                        document.getElementById('info').appendChild(WEBVR.createButton(renderer));
+                    }
+                }
+            }
+        }
+        
+        // Create the environment
+        init();
+        addGeometry();
+        //controls.lock();
+        animate();
+        
+        handleGallery();
+
+        // Event handlers for control locking
+        var blocker = document.getElementById('blocker');
+        blocker.addEventListener('click', function(event) {
+            controls.lock();
+        }, false);
+        
+        controls.addEventListener('lock', function() {
+            blocker.style.display = 'none';
+        });
+        
+        controls.addEventListener('unlock', function() {
+            blocker.style.display = 'block';
+        });
+        
+        // Window resize
+        function onwindow() {
+            if (!camera) return;
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+        window.addEventListener('resize', onwindow, false);
+    </script>
+</html>
