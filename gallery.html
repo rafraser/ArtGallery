@@ -184,9 +184,11 @@
             This creates the floor, walls and ceiling. Also adds a light to the room.
         */
         function addGeometry() {
+			// Create the floor material
             var texture = new THREE.TextureLoader().load('img/art/woodfloor.png');
             var material = new THREE.MeshPhongMaterial({map: texture});
             
+			// Add the floor
             var floor = new THREE.Mesh(
                 new THREE.PlaneBufferGeometry(room_size, room_size),
                 material,
@@ -194,10 +196,11 @@
             floor.rotateX(-Math.PI/2);
             scene.add(floor);
             
+			// Create the wall material
             var walltexture = new THREE.TextureLoader().load('img/art/whitewall.png');
             var wallmaterial = new THREE.MeshLambertMaterial({map: walltexture});
-            //var wallmaterial = new THREE.MeshBasicMaterial({color: 0x00ff00, wireframe: true});
             
+			// Calculate wall positions and rotations
             var room_height = 50;
             var wall_positions = [
                 [0, -room_size/2, 0],
@@ -206,6 +209,7 @@
                 [room_size/2, 0, -Math.PI/2],
             ]
             
+			// Add all 4 walls
             for(var i=0; i<wall_positions.length; i++) {
                 var p = wall_positions[i];
                 var wall = new THREE.Mesh(
@@ -218,6 +222,7 @@
                 wall.rotateY(p[2]);
             }
             
+			// Add the ceiling
             var ceiling = new THREE.Mesh(
                 new THREE.PlaneBufferGeometry(room_size, room_size),
                 wallmaterial,
@@ -226,6 +231,7 @@
             ceiling.position.set(0, room_height, 0);
             ceiling.rotateX(Math.PI/2);
             
+			// Place a light in the center of the room
             var light = new THREE.PointLight(0xcceeff, 1, room_size*2, 1);
             light.position.set(0, room_height/2, 0);
             scene.add(light);
@@ -238,8 +244,7 @@
             if (current_painting >= painting_positions.length) return;
             var position = painting_positions[current_painting];
             
-            console.log(image, position);
-            
+			// Load the texture and apply it to a plane
             var texture = new THREE.TextureLoader().load(image, function(texture) {
                 var ratio = texture.image.height/texture.image.width;
                 var width = position[0];
