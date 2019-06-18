@@ -185,8 +185,17 @@
         */
         function addGeometry() {
 			// Create the floor material
-            var texture = new THREE.TextureLoader().load('img/art/woodfloor.png');
-            var material = new THREE.MeshPhongMaterial({map: texture});
+            var texture = new THREE.TextureLoader().load('img/art/woodfloor.jpg');
+            var texture_normal = new THREE.TextureLoader().load('img/art/woodfloor_normal.jpg');
+            var texture_roughness = new THREE.TextureLoader().load('img/art/woodfloor_roughness.jpg');
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.wrapT = THREE.RepeatWrapping;
+            texture.repeat.set(2, 2);
+            var material = new THREE.MeshStandardMaterial({
+                map: texture,
+                normalMap: texture_normal,
+                roughnessMap: texture_roughness,
+             });
             
 			// Add the floor
             var floor = new THREE.Mesh(
@@ -198,6 +207,9 @@
             
 			// Create the wall material
             var walltexture = new THREE.TextureLoader().load('img/art/whitewall.png');
+            walltexture.wrapS = THREE.RepeatWrapping;
+            walltexture.wrapT = THREE.RepeatWrapping;
+            walltexture.repeat.set(2, 2);
             var wallmaterial = new THREE.MeshLambertMaterial({map: walltexture});
             
 			// Calculate wall positions and rotations
